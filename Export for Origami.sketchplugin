@@ -1,0 +1,210 @@
+// (ctrl alt cmd O)
+// Export for Origami v1.0 - Julius Tarng
+// Based on bomberstudio's sketch-framer, GeertWille's sketch-export-assets and zmaltalker's sketch-android-assets
+// - Exports all layers and flattened groups (append name with *) similar to sketch-framer plugin
+// - Saves all assets to path of current document + origami/ + <artboardname>/ + <layername>.png
+
+var export_directory,
+    origami_directory = "/" + [doc displayName] + " Origami Project"
+    export_scale_factor = 1; // if you work at 2x, set this at 1, if you work at 1x, set this at 2
+
+main();
+
+//
+// Main export functions
+//
+
+function main() {
+  var app_version = [NSApp applicationVersion].substr(0,1);
+  if (app_version < 3) {
+    alert("Export for Origami only supports Sketch 3 and above. You are running " + app_version);
+    return;
+  }
+
+  var file_url = [doc fileURL];
+  if (file_url == null) {
+    alert("Please save your document. Export for Origami will export the assets to the same folder under " + origami_directory);
+    return;
+  } else { 
+    export_directory = [file_url path].split([doc displayName])[0] + origami_directory;
+  }
+
+  var layers = [[doc currentPage] layers];
+  var artboard_name = "";
+
+  // TODO: check artboard dimensions for device type + scale factor
+  // export_directory = prompt_for_directory() + origami_directory;
+
+  for (var j=0; j < [layers count]; j++) {
+    var layer = [layers objectAtIndex:j];
+
+    if([layer isMemberOfClass:[MSArtboardGroup class]]) {
+      artboard_name = [layer name];
+    }
+
+    process_layer(layer, 0, artboard_name);
+  }
+
+
+  var finder_task = [[NSTask alloc] init],
+  open_finder_args = [NSArray arrayWithObjects:"-R", export_directory, nil];
+
+  [finder_task setLaunchPath:"/usr/bin/open"];
+  [finder_task setArguments:open_finder_args];
+  [finder_task launch];
+}
+
+function process_layer(layer, depth, artboard_name) {
+  // Ignore MSPage layers
+  if (should_ignore_layer(layer)) {
+    log_depth("Ignoring <" + [layer name] + "> of type <" + [layer className] + ">", depth);
+    return;
+  }
+
+  // Only process groups and layers marked with +
+  if (should_export_layer(layer)) {
+    log_depth("Processing <" + [layer name] + "> of type <" + [layer className] + ">", depth);
+
+    if (![layer isVisible]) {
+      // TODO: Support hidden layers. Currently just skips
+      return;
+    }
+
+    // Recursively go through sublayers if group not flattened with *
+    if (is_unflattened_group(layer)) {
+      var sublayers = [layer layers];
+      // Sketch returns sublayers in reverse, so we'll iterate backwards
+      for (var sub=([sublayers count] - 1); sub >= 0; sub--) {
+        var current = [sublayers objectAtIndex:sub];
+        process_layer(current, depth+1, artboard_name);
+      }
+    }
+
+    export_layer(layer, depth, artboard_name);
+  }
+}
+
+function export_layer(layer, depth, artboard_name) {
+  log_depth("Exporting <" + [layer name] + ">", depth);
+  if (artboard_name !== "") {
+    artboard_name = "/" + sanitize_filename(artboard_name);
+  }
+  var filename = export_directory + artboard_name + "/" + sanitize_filename([layer name]) + ".png";
+
+  // Copy off-screen, out of artboard so it is not masked
+  var layer_copy = [layer duplicate];
+  [layer_copy removeFromParent];
+  [[doc currentPage] addLayers: [layer_copy]];
+  var frame = [layer_copy frame];
+  [frame setX: -100000];
+  [frame setY: -100000];
+
+  var included_layers = [];
+  var has_art = false;
+
+  if (is_unflattened_group(layer)) {
+    // Remove all layers that should be exported on its own
+    var sublayers = [layer_copy layers];
+
+    for (var sub = ([sublayers count] - 1); sub >= 0; sub--) {
+      var sublayer = [sublayers objectAtIndex:sub];
+      // if sublayer should be exported on its own
+      if(should_export_layer(sublayer)) {
+        log("     REMOVING " + [sublayer name]);
+        [sublayer removeFromParent];
+      } else {
+        log("     KEEPING " + [sublayer name]);
+        included_layers.push([sublayer name]);
+        has_art = true;
+      }
+    }
+  } else {
+    has_art = true;
+  }
+
+  if (has_art) {
+    log_depth("Exporting <" + [layer name] + "> including sublayers (" + included_layers.join(", ") + ")", depth);
+
+    // Export slice
+    var rect = [layer_copy absoluteDirtyRect],
+        slice = [MSExportRequest requestWithRect:rect scale:export_scale_factor];
+        // TODO: support other scales than @2x
+    [doc saveArtboardOrSlice:slice toFile:filename];
+  } else {
+    log_depth("Exporting <" + [layer name] + ">, no image", depth);
+  }
+
+  // Remove copy
+  [layer_copy removeFromParent];
+}
+
+
+//
+// Layer Helpers
+//
+    
+function should_ignore_layer(layer) {
+  return [layer className] == "MSPage";
+}
+
+function should_flatten_layer(layer) {
+  if([layer name].slice(-1) == "*") {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+// Export all groups and layers appended with +
+function should_export_layer(layer) {
+  return is_group(layer) || [layer name].slice(-1) == '+';
+}
+
+function is_group(layer) {
+  return [layer isMemberOfClass:[MSLayerGroup class]] || [layer isMemberOfClass:[MSArtboardGroup class]]
+}
+
+function is_unflattened_group(layer) {
+  return is_group(layer) && !should_flatten_layer(layer);
+}
+
+//
+// File helpers
+//
+
+// Let the user specify a directory
+function prompt_for_directory() {
+    var panel = [NSOpenPanel openPanel];
+    [panel setMessage:"Where do you want to place your assets?"];
+    [panel setCanChooseDirectories: true];
+    [panel setCanChooseFiles: false];
+    [panel setCanCreateDirectories: true];
+    var default_dir = [[doc fileURL] URLByDeletingLastPathComponent];
+    [panel setDirectoryURL:default_dir];
+
+    if ([panel runModal] == NSOKButton){
+      var message = [panel filename];
+      return message;
+    }
+}
+
+function sanitize_filename(name) {
+  return name.replace(/(:|\/)/g ,"_").replace(/__/g,"_").replace("*","").replace("+","").replace("@@hidden",""); // TODO: replace spaces? /(\s|:|\/)/g
+}
+
+//
+// Debug Helpers
+//
+
+function alert(msg){
+    var app = [NSApplication sharedApplication];
+    [app displayDialog:msg withTitle:"Hey"];
+}
+
+function log_depth(message, depth) {
+  var padding = "";
+  for(var i=0; i<depth; i++) {
+    padding = padding + ">"
+  }
+  log(padding + " " + message);
+}
