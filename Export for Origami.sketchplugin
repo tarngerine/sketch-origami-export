@@ -1,16 +1,14 @@
 // (ctrl alt cmd O)
 // Export for Origami v1.0 - Julius Tarng
-// Based on bomberstudio's sketch-framer, GeertWille's sketch-export-assets and zmaltalker's sketch-android-assets
-// - Exports all layers and flattened groups (append name with *) similar to sketch-framer plugin
-// - Saves all assets to path of current document + origami/ + <artboardname>/ + <layername>.png
+// Based on bomberstudio + cemre's sketch-framer
+// - Exports all groups (append name with * to flatten subgroups) and layers (appended with +), similar to sketch-framer plugin
+// - Saves all assets to Sketch's temp directory under Origami Projects/[doc displayName]
 
-preflight(); // Checks version + if file is saved. Must be at top!
-var origami_directory = "/" + [doc displayName] + " Origami Project",
-    export_directory = [[doc fileURL] path].split([doc displayName])[0] + origami_directory,
+var origami_directory = "Origami Projects/" + [doc displayName];
+preflight();
+var export_directory = NSTemporaryDirectory() + origami_directory, //temp one avoiding sandboxing
     export_scale_factor = 1,
-    layer_names = [], // to prevent conflicting filenames
-    settings_filepath = export_directory + "/.origamiblueprint",
-    settings = [[NSMutableDictionary alloc] init]; // for .origamiblueprint file
+    layer_names = []; // to prevent conflicting filenames
 main();
 
 //
@@ -19,10 +17,11 @@ main();
 
 function main() {
   log("========================= Export for Origami log =========================");
-
   var layers = [[doc currentPage] layers],
-      artboard_name,
+      artboard_name, 
       fileManager = [NSFileManager defaultManager],
+      settings_filepath = export_directory + "/.origamiblueprint",
+      settings = [[NSMutableDictionary alloc] init], // for .origamiblueprint file
       origami_settings_exists = [fileManager fileExistsAtPath:settings_filepath];
 
   if (origami_settings_exists) { 
@@ -56,35 +55,23 @@ function main() {
     [scaleJSON writeToFile:settings_filepath atomically:true encoding:NSUTF8StringEncoding error:null];
   }
 
-  
   // Open folder in Finder
-  var finder_task = [[NSTask alloc] init],
-  open_finder_args = [NSArray arrayWithObjects:"-R", export_directory, nil];
-  [finder_task setLaunchPath:"/usr/bin/open"];
-  [finder_task setArguments:open_finder_args];
-  [finder_task launch];
+  workspace = [[NSWorkspace alloc] init];
+  [workspace selectFile:export_directory inFileViewerRootedAtPath:@""];
 }
 
 function process_layer(layer, depth, artboard_name) {
-  // Ignore MSPage layers
-  if (should_ignore_layer(layer)) {
-    log_depth("Ignoring <" + [layer name] + "> of type <" + [layer className] + ">", depth);
-    return;
-  }
-
   // Process groups (including artboards) and layers marked with +, and ungrouped layers outside of artboards
-  if (should_export_layer(layer) || (!is_group(layer) && (depth == 0))) {
+  if (should_export_layer(layer) || (!is_group(layer) && (depth == 0) && !(should_ignore_layer))) {
+    // Duplicate name check
     if (array_contains(layer_names, artboard_name + [layer name])) {
       log_depth("Layer name conflict: <" + [layer name] + "> already exists in artboard <" + artboard_name + ">", depth);
-      alert((artboard_name.length > 0 ? "" : "This name is taken by another group/layer in artboard '" + artboard_name) +
-            "'.\n\nPlease make sure all exportable groups/layers have unique names.", "Layer name conflict: '" + [layer name] + "'");
-      [layer select:true byExpandingSelection:false];
-      return;
-    } else {
-      layer_names.push(artboard_name + [layer name]);
+      [layer setName:[layer name] + " copy"];
+      log_depth("Renaming to: <" + [layer name] + "> to " + artboard_name + ">", depth);
     }
+    layer_names.push(artboard_name + [layer name]);
 
-    if (![layer isVisible]) {
+    if ([layer isVisible] == 0) {
       // TODO: Support hidden layers?
       return;
     }
@@ -130,8 +117,8 @@ function export_layer(layer, depth, artboard_name) {
         mask_layer = sublayer;
       }
 
-      // if sublayer should be exported on its own
-      if(should_export_layer(sublayer)) {
+      // If sublayer should be exported on its own
+      if((should_export_layer(sublayer) && !should_flatten_layer(layer)) || [sublayer isVisible] == 0)  {
         log_depth_core("Removing <" + [sublayer name] + ">", depth, " ");
         [sublayer removeFromParent];
       } else {
@@ -148,25 +135,26 @@ function export_layer(layer, depth, artboard_name) {
     if (artboard_name !== "") {
       artboard_name = "/" + sanitize_filename(artboard_name);
     }
-    var filename = artboard_name + "/" + sanitize_filename([layer name]) + ".png";
-    log_depth("Exporting <" + filename + "> including sublayers (" + included_layers.join(", ") + ")", depth);
+    var path_to_file = export_directory + artboard_name + "/" + sanitize_filename([layer name]) + ".png";
+    log_depth("Exporting <" + path_to_file + "> including sublayers (" + included_layers.join(", ") + ")", depth);
 
     // Export slice
     var rect;
     if (mask_layer) {
+      // rect = [[mask_layer frame] rect];
       rect = [mask_layer absoluteDirtyRect];
     } else {
-      rect = [layer_copy absoluteDirtyRect];
+      rect = [[layer_copy frame] rect];
+      // log("Borders:" + [[[layer_copy style] borders] count]);
+      // log("Shadows:" + [[[layer_copy style] shadows] count]);
+      // rect = [layer_copy absoluteDirtyRect];
     }
-    
     var slice = [MSExportRequest requestWithRect:rect scale:export_scale_factor];
-
-    [doc saveArtboardOrSlice:slice toFile:export_directory + filename];
+    [doc saveArtboardOrSlice:slice toFile:path_to_file];
   } else {
     log_depth("Did not export <" + [layer name] + ">, no image", depth);
   }
 
-  // Remove copy
   [layer_copy removeFromParent];
 }
 
@@ -177,12 +165,7 @@ function export_layer(layer, depth, artboard_name) {
 function preflight() { 
   var app_version = [NSApp applicationVersion].substr(0,1);
   if (app_version < 3) {
-    alert("Export for Origami only supports Sketch 3 and above. You are running " + app_version, "Please upgrade Sketch");
-    return;
-  }
-
-  if ([doc fileURL] == null) {
-    alert("Please save your document. Export for Origami will export the assets to the same folder under " + origami_directory, "Unsaved document");
+    alert("Export for Origami only supports Sketch 3 and above. You are running " + app_version, ". Please upgrade Sketch.");
     return;
   }
 }
@@ -211,22 +194,18 @@ function combobox(msg, items, selectedItemIndex){
 //
 // Layer Helpers
 //
-    
+
 function should_ignore_layer(layer) {
   return [layer name].slice(-1) == "-";
 }
 
 function should_flatten_layer(layer) {
-  if([layer name].slice(-1) == "*") {
-    return true;
-  } else {
-    return false;
-  }
+  return [layer name].slice(-1) == "*";
 }
 
 // Export all groups and layers appended with +
 function should_export_layer(layer) {
-  return is_group(layer) || [layer name].slice(-1) == '+';
+  return (is_group(layer) || [layer name].slice(-1) == '+') && !should_ignore_layer(layer);
 }
 
 function is_group(layer) {
@@ -240,21 +219,6 @@ function is_unflattened_group(layer) {
 //
 // File helpers
 //
-
-function prompt_for_directory() {
-    var panel = [NSOpenPanel openPanel];
-    [panel setMessage:"Where do you want to place your assets?"];
-    [panel setCanChooseDirectories: true];
-    [panel setCanChooseFiles: false];
-    [panel setCanCreateDirectories: true];
-    var default_dir = [[doc fileURL] URLByDeletingLastPathComponent];
-    [panel setDirectoryURL:default_dir];
-
-    if ([panel runModal] == NSOKButton){
-      var message = [panel filename];
-      return message;
-    }
-}
 
 function sanitize_filename(name) {
   return name.replace(/(:|\/)/g ,"_").replace(/__/g,"_").replace("*","").replace("+","").replace("@@hidden",""); // TODO: replace spaces? /(\s|:|\/)/g
