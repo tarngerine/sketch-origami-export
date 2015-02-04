@@ -62,9 +62,7 @@ function main() {
 
 function process_layer(layer, depth, artboard_name) {
   // Process groups (including artboards) and layers marked with +, and ungrouped layers outside of artboards
-    log("hello");
   if (should_export_layer(layer) || (!is_group(layer) && (depth == 0) && !(should_ignore_layer(layer)))) {
-    log("sup made it");
     // Duplicate name check
     if (array_contains(layer_names, artboard_name + [layer name])) {
       log_depth("Layer name conflict: <" + [layer name] + "> already exists in artboard <" + artboard_name + ">", depth);
