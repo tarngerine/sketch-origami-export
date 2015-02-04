@@ -19,7 +19,7 @@ Hit `Control + Command + Option` to run the plugin, and it will first prompt you
 All groups and layers appended with `+` will become an individual PNG, sorted into folders with their containing artboard names.
 
 ## More info
-!()[http://cl.ly/image/16442t0F2G1N/Export%20for%20Origami%20Live%20Image.png]
+![](http://cl.ly/image/16442t0F2G1N/Export%20for%20Origami%20Live%20Image.png)
 
 Drag the whole export directory, while holding `Command + Option` to automatically create Live Image patches with the paths to the assets.
 
