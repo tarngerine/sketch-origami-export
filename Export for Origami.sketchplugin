@@ -4,9 +4,9 @@
 // - Exports all groups (append name with * to flatten subgroups) and layers (appended with +), similar to sketch-framer plugin
 // - Saves all assets to Sketch's temp directory under Origami Projects/[doc displayName]
 
-var origami_directory = "Origami Projects/" + [doc displayName];
 preflight();
-var export_directory = NSTemporaryDirectory() + origami_directory, //temp one avoiding sandboxing
+var origami_directory = "Origami Projects/" + [doc displayName],
+    export_directory = NSTemporaryDirectory() + origami_directory, //temp one avoiding sandboxing
     export_scale_factor = 1,
     layer_names = []; // to prevent conflicting filenames
 main();
@@ -18,36 +18,35 @@ main();
 function main() {
   log("========================= Export for Origami log =========================");
   var layers = [[doc currentPage] layers],
-      artboard_name, 
       fileManager = [NSFileManager defaultManager],
       settings_filepath = export_directory + "/.origamiblueprint",
       settings = [[NSMutableDictionary alloc] init], // for .origamiblueprint file
-      origami_settings_exists = [fileManager fileExistsAtPath:settings_filepath];
+      settings_exists = [fileManager fileExistsAtPath:settings_filepath];
 
-  if (origami_settings_exists) { 
+  // Get scale factor
+  if (settings_exists) { 
     var data = [[NSString stringWithContentsOfFile:settings_filepath] dataUsingEncoding:NSUTF8StringEncoding];
     settings = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
     export_scale_factor = [settings valueForKeyPath:@"scale"];
   } else {
     var factors = [".5x", "1x", "1.5x", "2x", "3x"];
     var scale_factor_choice = combobox("Export with what resolution multiplier?", factors, 1);
-    export_scale_factor = scale_factor_choice[2].replace(/([A-Za-z])/g,"");
+    if (scale_factor_choice[0] != NSAlertFirstButtonReturn) { return; }
+    export_scale_factor = scale_factor_choice[2].replace(/[^0-9]/g,"");
   }
 
+  // Process layers
   for (var i=0; i<[layers count]; i++) {
     var layer = [layers objectAtIndex:i];
-    if([layer isMemberOfClass:[MSArtboardGroup class]]){
-      artboard_name = [layer name];
-    } else {
-      artboard_name = "";
-    }
+    var artboard_name = [layer isMemberOfClass:[MSArtboardGroup class]] ? [layer name] : "";
     process_layer(layer, 0, artboard_name);
   }
 
-  if (origami_settings_exists) {
+  // Save scale factor into settings
+  if (settings_exists) {
     [doc showMessage:"Updating " + layer_names.length + " assets for Origami"];
   } else {
-    [doc showMessage:"Creating folder with " + layer_names.length + " assets for Origami"];
+    [doc showMessage:"Created folder with " + layer_names.length + " assets for Origami"];
     [settings setValue:export_scale_factor forKey:@"scale"];
     var scaleJSON = [NSJSONSerialization dataWithJSONObject:settings options:NSJSONWritingPrettyPrinted error:nil];
     scaleJSON = [[NSString alloc] initWithData:scaleJSON encoding:NSUTF8StringEncoding];
@@ -61,6 +60,8 @@ function main() {
 }
 
 function process_layer(layer, depth, artboard_name) {
+  if ([layer isVisible] == 0) { return; } // TODO: Support hidden layers?
+
   // Process groups (including artboards) and layers marked with +, and ungrouped layers outside of artboards
   if (should_export_layer(layer) || (!is_group(layer) && (depth == 0) && !(should_ignore_layer(layer)))) {
     // Duplicate name check
@@ -71,13 +72,8 @@ function process_layer(layer, depth, artboard_name) {
     }
     layer_names.push(artboard_name + [layer name]);
 
-    if ([layer isVisible] == 0) {
-      // TODO: Support hidden layers?
-      return;
-    }
-
     // Recursively go through sublayers if group not flattened with *
-    if (is_unflattened_group(layer)) {
+    if (is_group(layer) && !should_flatten_layer(layer)) {
       var sublayers = [layer layers];
       // Sketch returns sublayers in reverse, so we'll iterate backwards
       for (var sub=([sublayers count] - 1); sub >= 0; sub--) {
@@ -85,7 +81,6 @@ function process_layer(layer, depth, artboard_name) {
         process_layer(current, depth+1, artboard_name);
       }
     }
-
     export_layer(layer, depth, artboard_name);
   }
 }
@@ -96,29 +91,24 @@ function export_layer(layer, depth, artboard_name) {
   [layer_copy removeFromParent];
   [[doc currentPage] addLayers: [layer_copy]];
   var frame = [layer_copy frame];
-  [frame setX: -100000];
-  [frame setY: -100000];
-
+  [frame setX: -999999];
+  [frame setY: -999999];
   var included_layers = [];
   var has_art = false;
   var mask_layer;
 
   log_depth("Processing <" + [layer name] + "> of type <" + [layer className] + ">", depth);
-
   if (is_group(layer)) {
     var sublayers = [layer_copy layers];
-
     for (var sub = ([sublayers count] - 1); sub >= 0; sub--) {
       var sublayer = [sublayers objectAtIndex:sub];
-
+      // Check for mask
       if ([sublayer hasClippingMask]) {
-        // Bc of reverse layer order, first mask is the bottom-most
         log_depth_core("Masking with <" + [sublayer name] + ">", depth, " ");
         mask_layer = sublayer;
       }
-
       // If sublayer should be exported on its own
-      if((should_export_layer(sublayer) && !should_flatten_layer(layer)) || [sublayer isVisible] == 0)  {
+      if((should_export_layer(sublayer) && !should_flatten_layer(layer)) || [sublayer isVisible] == 0) {
         log_depth_core("Removing <" + [sublayer name] + ">", depth, " ");
         [sublayer removeFromParent];
       } else {
@@ -137,8 +127,6 @@ function export_layer(layer, depth, artboard_name) {
     }
     var path_to_file = export_directory + artboard_name + "/" + sanitize_filename([layer name]) + ".png";
     log_depth("Exporting <" + path_to_file + "> including sublayers (" + included_layers.join(", ") + ")", depth);
-
-    // Export slice
     var rect;
     if (mask_layer) {
       rect = [MSSliceTrimming trimmedRectForSlice:mask_layer];
@@ -199,17 +187,12 @@ function should_flatten_layer(layer) {
   return [layer name].slice(-1) == "*";
 }
 
-// Export all groups and layers appended with +
 function should_export_layer(layer) {
   return (is_group(layer) || [layer name].slice(-1) == '+') && !should_ignore_layer(layer);
 }
 
 function is_group(layer) {
   return [layer isMemberOfClass:[MSLayerGroup class]] || [layer isMemberOfClass:[MSArtboardGroup class]]
-}
-
-function is_unflattened_group(layer) {
-  return is_group(layer) && !should_flatten_layer(layer);
 }
 
 //
@@ -247,6 +230,5 @@ function array_contains(array, object) {
       return true;
     }
   }
-
   return false;
 }
