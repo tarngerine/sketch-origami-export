@@ -141,11 +141,9 @@ function export_layer(layer, depth, artboard_name) {
     // Export slice
     var rect;
     if (mask_layer) {
-      // rect = [[mask_layer frame] rect];
-      rect = [mask_layer absoluteDirtyRect];
+      rect = [MSSliceTrimming trimmedRectForSlice:mask_layer];
     } else {
-      // rect = [[layer_copy frame] rect];
-      rect = [layer_copy absoluteDirtyRect];
+      rect = [MSSliceTrimming trimmedRectForSlice:layer_copy];
     }
     var slice = [MSExportRequest requestWithRect:rect scale:export_scale_factor];
     [doc saveArtboardOrSlice:slice toFile:path_to_file];
