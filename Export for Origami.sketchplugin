@@ -5,7 +5,7 @@
 // - Saves all assets to Sketch's temp directory under Origami Projects/[doc displayName]
 
 preflight();
-var origami_directory = "Origami Projects/" + [doc displayName],
+var origami_directory = "Origami Projects/" + [doc displayName].split(".sketch")[0],
     export_directory = NSTemporaryDirectory() + origami_directory, //temp one avoiding sandboxing
     export_scale_factor = 1,
     layer_names = []; // to prevent conflicting filenames
