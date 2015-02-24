@@ -4,8 +4,7 @@ Export for Origami
 Exports and updates Sketch assets for Facebook's [Origami](https://facebook.github.io/origami) prototyping toolkit for Quartz Composer, adapted from [sketch-framer](https://github.com/bomberstudios/sketch-framer).
 
 ## Installation
-Please use Sketch Toolbox to have an always-updated version of the plugin. 
-You can *Download Zip* to the right and double-click on the .sketchplugin file to install.
+You can [Download Zip](https://github.com/tarngerine/sketch-origami-export/archive/master.zip) to the right and double-click on the .sketchplugin file to install.
 
 ## How it works
 This plugin takes all visible layers, in or out of artboards, and exports them into a temp directory for easy drag & drop into Origami (More info below). As you make changes and work back and forth between Sketch and Origami, run the plugin again and see it updated live with the Live Image patch.
