@@ -4,7 +4,7 @@ Export for Origami
 Exports and updates Sketch assets for Facebook's [Origami](https://facebook.github.io/origami) prototyping toolkit for Quartz Composer, adapted from [sketch-framer](https://github.com/bomberstudios/sketch-framer).
 
 ## Installation
-You can [Download Zip](https://github.com/tarngerine/sketch-origami-export/archive/master.zip) to the right and double-click on the .sketchplugin file to install.
+You can [Download Zip](https://github.com/tarngerine/sketch-origami-export/archive/master.zip) to the right and double-click on the .sketchplugin file to install. Important note: symbols are not supported — please remove all symbols before running.
 
 [Watch video tutorial](https://vimeo.com/120452278)
 
