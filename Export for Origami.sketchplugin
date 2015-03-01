@@ -1,0 +1,234 @@
+// (ctrl alt cmd O)
+// Export for Origami v1.0 - Julius Tarng
+// Based on bomberstudio + cemre's sketch-framer
+// - Exports all groups (append name with * to flatten subgroups) and layers (appended with +), similar to sketch-framer plugin
+// - Saves all assets to Sketch's temp directory under Origami Projects/[doc displayName]
+
+preflight();
+var origami_directory = "Origami Projects/" + [doc displayName].split(".sketch")[0],
+    export_directory = NSTemporaryDirectory() + origami_directory, //temp one avoiding sandboxing
+    export_scale_factor = 1,
+    layer_names = []; // to prevent conflicting filenames
+main();
+
+//
+// Main export functions
+//
+
+function main() {
+  log("========================= Export for Origami log =========================");
+  var layers = [[doc currentPage] layers],
+      fileManager = [NSFileManager defaultManager],
+      settings_filepath = export_directory + "/.origamiblueprint",
+      settings = [[NSMutableDictionary alloc] init], // for .origamiblueprint file
+      settings_exists = [fileManager fileExistsAtPath:settings_filepath];
+
+  // Get scale factor
+  if (settings_exists) { 
+    var data = [[NSString stringWithContentsOfFile:settings_filepath] dataUsingEncoding:NSUTF8StringEncoding];
+    settings = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+    export_scale_factor = [settings valueForKeyPath:@"scale"];
+  } else {
+    var factors = [".5x", "1x", "1.5x", "2x", "3x"];
+    var scale_factor_choice = combobox("Export with what resolution multiplier?", factors, 1);
+    if (scale_factor_choice[0] != NSAlertFirstButtonReturn) { return; }
+    export_scale_factor = scale_factor_choice[2].replace(/[^0-9]/g,"");
+  }
+
+  // Process layers
+  for (var i=0; i<[layers count]; i++) {
+    var layer = [layers objectAtIndex:i];
+    var artboard_name = [layer isMemberOfClass:[MSArtboardGroup class]] ? [layer name] : "";
+    process_layer(layer, 0, artboard_name);
+  }
+
+  // Save scale factor into settings
+  if (settings_exists) {
+    [doc showMessage:"Updating " + layer_names.length + " assets for Origami"];
+  } else {
+    [doc showMessage:"Created folder with " + layer_names.length + " assets for Origami"];
+    [settings setValue:export_scale_factor forKey:@"scale"];
+    var scaleJSON = [NSJSONSerialization dataWithJSONObject:settings options:NSJSONWritingPrettyPrinted error:nil];
+    scaleJSON = [[NSString alloc] initWithData:scaleJSON encoding:NSUTF8StringEncoding];
+    log("Making .origamiblueprint file with contents: " + scaleJSON);
+    [scaleJSON writeToFile:settings_filepath atomically:true encoding:NSUTF8StringEncoding error:null];
+  }
+
+  // Open folder in Finder
+  workspace = [[NSWorkspace alloc] init];
+  [workspace selectFile:export_directory inFileViewerRootedAtPath:@""];
+}
+
+function process_layer(layer, depth, artboard_name) {
+  if ([layer isVisible] == 0) { return; } // TODO: Support hidden layers?
+
+  // Process groups (including artboards) and layers marked with +, and ungrouped layers outside of artboards
+  if (should_export_layer(layer) || (!is_group(layer) && (depth == 0) && !(should_ignore_layer(layer)))) {
+    // Duplicate name check
+    if (array_contains(layer_names, artboard_name + [layer name])) {
+      log_depth("Layer name conflict: <" + [layer name] + "> already exists in artboard <" + artboard_name + ">", depth);
+      [layer setName:[layer name] + " copy"];
+      log_depth("Renaming to: <" + [layer name] + "> to " + artboard_name + ">", depth);
+    }
+    layer_names.push(artboard_name + [layer name]);
+
+    // Recursively go through sublayers if group not flattened with *
+    if (is_group(layer) && !should_flatten_layer(layer)) {
+      var sublayers = [layer layers];
+      // Sketch returns sublayers in reverse, so we'll iterate backwards
+      for (var sub=([sublayers count] - 1); sub >= 0; sub--) {
+        var current = [sublayers objectAtIndex:sub];
+        process_layer(current, depth+1, artboard_name);
+      }
+    }
+    export_layer(layer, depth, artboard_name);
+  }
+}
+
+function export_layer(layer, depth, artboard_name) {
+  // Copy off-screen, out of artboard so it is not masked by artboard
+  var layer_copy = [layer duplicate];
+  [layer_copy removeFromParent];
+  [[doc currentPage] addLayers: [layer_copy]];
+  var frame = [layer_copy frame];
+  [frame setX: -999999];
+  [frame setY: -999999];
+  var included_layers = [];
+  var has_art = false;
+  var mask_layer;
+
+  log_depth("Processing <" + [layer name] + "> of type <" + [layer className] + ">", depth);
+  if (is_group(layer)) {
+    var sublayers = [layer_copy layers];
+    for (var sub = ([sublayers count] - 1); sub >= 0; sub--) {
+      var sublayer = [sublayers objectAtIndex:sub];
+      // Check for mask
+      if ([sublayer hasClippingMask]) {
+        log_depth_core("Masking with <" + [sublayer name] + ">", depth, " ");
+        mask_layer = sublayer;
+      }
+      // If sublayer should be exported on its own
+      if((should_export_layer(sublayer) && !should_flatten_layer(layer)) || [sublayer isVisible] == 0) {
+        log_depth_core("Removing <" + [sublayer name] + ">", depth, " ");
+        [sublayer removeFromParent];
+      } else {
+        log_depth_core("Keeping <" + [sublayer name] + ">", depth, " ");
+        included_layers.push([sublayer name]);
+        has_art = true;
+      }
+    }
+  } else {
+    has_art = true;
+  }
+
+  if (has_art) {
+    if (artboard_name !== "") {
+      artboard_name = "/" + sanitize_filename(artboard_name);
+    }
+    var path_to_file = export_directory + artboard_name + "/" + sanitize_filename([layer name]) + ".png";
+    log_depth("Exporting <" + path_to_file + "> including sublayers (" + included_layers.join(", ") + ")", depth);
+    var rect;
+    if (mask_layer) {
+      rect = [MSSliceTrimming trimmedRectForSlice:mask_layer];
+    } else {
+      rect = [MSSliceTrimming trimmedRectForSlice:layer_copy];
+    }
+    var slice = [MSExportRequest requestWithRect:rect scale:export_scale_factor];
+    [doc saveArtboardOrSlice:slice toFile:path_to_file];
+  } else {
+    log_depth("Did not export <" + [layer name] + ">, no image", depth);
+  }
+
+  [layer_copy removeFromParent];
+}
+
+//
+// Helpers
+//
+
+function preflight() { 
+  var app_version = [NSApp applicationVersion].substr(0,1);
+  if (app_version < 3) {
+    alert("Export for Origami only supports Sketch 3 and above. You are running " + app_version, ". Please upgrade Sketch.");
+    return;
+  }
+}
+
+function combobox(msg, items, selectedItemIndex){
+  selectedItemIndex = selectedItemIndex || 0;
+
+  var combobox = [[NSComboBox alloc] initWithFrame:NSMakeRect(0,0,50,25)];
+  [combobox addItemsWithObjectValues:items];
+  [combobox selectItemAtIndex:selectedItemIndex];
+
+  var alert = [[NSAlert alloc] init];
+  [alert setMessageText:msg];
+  [alert addButtonWithTitle:'Save'];
+  [alert addButtonWithTitle:'Cancel'];
+  [alert setAccessoryView:combobox];
+
+  var responseCode = [alert runModal];
+  var combosel = [combobox indexOfSelectedItem];
+  var combovalue = [combobox stringValue];
+  log(combovalue);
+
+  return [responseCode, combosel, combovalue];
+}
+
+//
+// Layer Helpers
+//
+
+function should_ignore_layer(layer) {
+  return [layer name].slice(-1) == "-";
+}
+
+function should_flatten_layer(layer) {
+  return [layer name].slice(-1) == "*";
+}
+
+function should_export_layer(layer) {
+  return (is_group(layer) || [layer name].slice(-1) == '+') && !should_ignore_layer(layer);
+}
+
+function is_group(layer) {
+  return [layer isMemberOfClass:[MSLayerGroup class]] || [layer isMemberOfClass:[MSArtboardGroup class]]
+}
+
+//
+// File helpers
+//
+
+function sanitize_filename(name) {
+  return name.replace(/(:|\/)/g ,"_").replace(/__/g,"_").replace("*","").replace("+","").replace("@@hidden",""); // TODO: replace spaces? /(\s|:|\/)/g
+}
+
+//
+// Debug Helpers
+//
+
+function alert(msg, title){
+  var app = [NSApplication sharedApplication];
+  [app displayDialog:msg withTitle:title];
+}
+
+function log_depth(message, depth) {
+  log_depth_core(message, depth, ">");
+}
+
+function log_depth_core(message, depth, spacer) {
+  var padding = spacer;
+  for(var i=0; i<depth; i++) {
+    padding = padding + spacer;
+  }
+  log(padding + " " + message);
+}
+
+function array_contains(array, object) {
+  for (i=0;i<array.length;i++) {
+    if (array[i] == object) {
+      return true;
+    }
+  }
+  return false;
+}
