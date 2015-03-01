@@ -1,5 +1,5 @@
-// (ctrl alt cmd O)
-// Export for Origami v1.0 - Julius Tarng
+// (ctrl alt cmd P)
+// Export for Origami, without opening Finder v1.0 - Julius Tarng
 // Based on bomberstudio + cemre's sketch-framer
 // - Exports all groups (append name with * to flatten subgroups) and layers (appended with +), similar to sketch-framer plugin
 // - Saves all assets to Sketch's temp directory under Origami Projects/[doc displayName]
@@ -55,8 +55,9 @@ function main() {
   }
 
   // Open folder in Finder
-  workspace = [[NSWorkspace alloc] init];
-  [workspace selectFile:export_directory inFileViewerRootedAtPath:@""];
+  // (disabled in this version of the plugin)
+  // workspace = [[NSWorkspace alloc] init];
+  // [workspace selectFile:export_directory inFileViewerRootedAtPath:@""];
 }
 
 function process_layer(layer, depth, artboard_name) {
