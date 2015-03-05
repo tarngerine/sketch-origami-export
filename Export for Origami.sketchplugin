@@ -8,6 +8,7 @@ preflight();
 var origami_directory = "Origami Projects/" + [doc displayName].split(".sketch")[0],
     export_directory = NSTemporaryDirectory() + origami_directory, //temp one avoiding sandboxing
     export_scale_factor = 1,
+    layers_metadata = {};
     layer_names = []; // to prevent conflicting filenames
 main();
 
@@ -26,8 +27,8 @@ function main() {
   // Get scale factor
   if (settings_exists) { 
     var data = [[NSString stringWithContentsOfFile:settings_filepath] dataUsingEncoding:NSUTF8StringEncoding];
-    settings = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
-    export_scale_factor = [settings valueForKeyPath:@"scale"];
+    var settings_old = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+    export_scale_factor = [settings_old valueForKeyPath:@"scale"];
   } else {
     var factors = [".5x", "1x", "1.5x", "2x", "3x"];
     var scale_factor_choice = combobox("Export with what resolution multiplier?", factors, 1);
@@ -38,7 +39,12 @@ function main() {
   // Process layers
   for (var i=0; i<[layers count]; i++) {
     var layer = [layers objectAtIndex:i];
-    var artboard_name = [layer isMemberOfClass:[MSArtboardGroup class]] ? [layer name] : "";
+    var artboard_name = "";
+    if ([layer isMemberOfClass:[MSArtboardGroup class]]) {
+      artboard_name = [layer name];
+      var artboard_data = {"w" : [[layer frame] width], "h" : [[layer frame] height], "type" : "artboard", "layers": []};
+      layers_metadata[artboard_name] = artboard_data;
+    }
     process_layer(layer, 0, artboard_name);
   }
 
@@ -47,12 +53,15 @@ function main() {
     [doc showMessage:"Updating " + layer_names.length + " assets for Origami"];
   } else {
     [doc showMessage:"Created folder with " + layer_names.length + " assets for Origami"];
-    [settings setValue:export_scale_factor forKey:@"scale"];
-    var scaleJSON = [NSJSONSerialization dataWithJSONObject:settings options:NSJSONWritingPrettyPrinted error:nil];
-    scaleJSON = [[NSString alloc] initWithData:scaleJSON encoding:NSUTF8StringEncoding];
-    log("Making .origamiblueprint file with contents: " + scaleJSON);
-    [scaleJSON writeToFile:settings_filepath atomically:true encoding:NSUTF8StringEncoding error:null];
   }
+
+  // Write settings
+  [settings setValue:export_scale_factor forKey:@"scale"];
+  [settings setValue:layers_metadata forKey:@"layers"];
+  var scaleJSON = [NSJSONSerialization dataWithJSONObject:settings options:NSJSONWritingPrettyPrinted error:nil];
+  scaleJSON = [[NSString alloc] initWithData:scaleJSON encoding:NSUTF8StringEncoding];
+  log("Making .origamiblueprint file with contents: " + scaleJSON);
+  [scaleJSON writeToFile:settings_filepath atomically:true encoding:NSUTF8StringEncoding error:null];
 
   // Open folder in Finder
   workspace = [[NSWorkspace alloc] init];
@@ -122,6 +131,18 @@ function export_layer(layer, depth, artboard_name) {
   }
 
   if (has_art) {
+    // Metadata
+    var layer_data = metadata_for(layer, layer_copy);
+    layer_data.type = "layer";
+    layer_data.name = sanitize_filename([layer name]);
+    if (artboard_name != 0) {
+      layer_data.order = layers_metadata[artboard_name][@"layers"].length;
+      layers_metadata[artboard_name][@"layers"].push(layer_data);
+    } else {
+      layers_metadata.push(layer_data); // if no artboards
+    }
+
+    // Export PNG
     if (artboard_name !== "") {
       artboard_name = "/" + sanitize_filename(artboard_name);
     }
@@ -142,10 +163,41 @@ function export_layer(layer, depth, artboard_name) {
   [layer_copy removeFromParent];
 }
 
+function metadata_for(layer, layer_copy) {
+  var gkrect = [GKRect rectWithRect:[MSSliceTrimming trimmedRectForSlice:layer_copy]],
+      position = calculate_real_position_for(layer),
+      x,y,w,h;
+
+  x = position.x;
+  y = position.y;
+  w = [gkrect width];
+  h = [gkrect height];
+
+  log("Metadata: { x:"+x+", y:"+y+", width:"+w+", height:"+h+"}");
+  return {
+    x: x,
+    y: y,
+    w: w,
+    h: h
+  };
+}
+
+function calculate_real_position_for(layer) {
+  var gkrect = [GKRect rectWithRect:[MSSliceTrimming trimmedRectForSlice:layer]],
+      absrect = [layer absoluteRect];
+  var rulerDeltaX = [absrect rulerX] - [absrect x],
+      rulerDeltaY = [absrect rulerY] - [absrect y],
+      GKRectRulerX = [gkrect x] + rulerDeltaX,
+      GKRectRulerY = [gkrect y] + rulerDeltaY;  
+  return {
+    x: Math.round(GKRectRulerX),
+    y: Math.round(GKRectRulerY)
+  }
+}
+
 //
 // Helpers
 //
-
 function preflight() { 
   var app_version = [NSApp applicationVersion].substr(0,1);
   if (app_version < 3) {
