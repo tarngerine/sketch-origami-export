@@ -11,6 +11,8 @@ var origami_directory = "Origami Projects/" + [doc displayName].split(".sketch")
     layers_metadata = [],
     current_artboard = 0,
     exported_layer_count = 0,
+    inside_top_level_group = false, //not artboard position shift
+    top_level_group_pos = {"x" : 0, "y" : 0},
     layer_names = []; // to prevent conflicting filenames
 main();
 
@@ -44,6 +46,10 @@ function main() {
     var group_name = "";
     if (is_group(layer)) { 
       group_name = [layer name];
+    }
+    if (![layer isMemberOfClass:[MSArtboardGroup class]]) {
+      inside_top_level_group = true;
+      top_level_group_pos = calculate_real_position_for(layer);
     }
     var p = process_layer(layer, 0, group_name);
     if (p != undefined) {
@@ -89,7 +95,6 @@ function process_layer(layer, depth, artboard_name) {
     var e = export_layer(layer, depth, artboard_name);
     if (e != undefined) {
       layer_data = e;
-      log_depth("pushing layer: " + e[@"name"], depth);
     } 
 
     // Recursively go through sublayers if group not flattened with *
@@ -101,9 +106,7 @@ function process_layer(layer, depth, artboard_name) {
       for (var sub=([sublayers count] - 1); sub >= 0; sub--) {
         var current = [sublayers objectAtIndex:sub];
         var d = process_layer(current, depth+1, artboard_name);
-        log_depth("sublayer data: " + d, depth);
         if (d != undefined) {
-          log_depth("pushing sublayer: " + d[@"name"], depth);
           layers_holder.push(d);
           has_exportable_children = true;
         }
@@ -111,13 +114,8 @@ function process_layer(layer, depth, artboard_name) {
       if (has_exportable_children) {
         if (e != undefined) { // if group itself had an exported png, add to sublayers
           layers_holder.push(e)
-          log_depth("pushing layer as sublayer: " + e[@"name"], depth);
         }
         layer_data = metadata_for(layer, layer);
-        if (depth == 0) { // set x,y to 0 for top level artboards/groups
-          layer_data.x = 0;
-          layer_data.y = 0;
-        }
         layer_data.type = "group";
         layer_data.name = sanitize_filename([layer name]);
         layer_data.layers = layers_holder;
@@ -204,6 +202,17 @@ function metadata_for(layer, layer_copy) {
   w = [gkrect width];
   h = [gkrect height];
 
+  if ([layer isMemberOfClass:[MSArtboardGroup class]]) {
+    log("Resetting x and y to 0 because artboard");
+    x = 0;
+    y = 0;
+  }
+  if (inside_top_level_group) {
+    x-= top_level_group_pos.x;
+    y-= top_level_group_pos.y;
+    log("Shifting x by: " + top_level_group_pos.x);
+    log("Shifting y by: " + top_level_group_pos.y);
+  }
   log("Metadata: { x:"+x+", y:"+y+", width:"+w+", height:"+h+"}");
   return {
     x: x,
