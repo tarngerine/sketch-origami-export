@@ -5,7 +5,7 @@
 // - Saves all assets to Sketch's temp directory under Origami Projects/[doc displayName]
 
 preflight();
-var origami_directory = "Origami Projects/" + [doc displayName].split(".sketch")[0] + ".origami",
+var origami_directory = "Origami Blueprints/" + [doc displayName].split(".sketch")[0] + ".origamiblueprint",
     export_directory = NSTemporaryDirectory() + origami_directory, //temp one avoiding sandboxing
     export_scale_factor = 1,
     layers_metadata = [],
@@ -24,8 +24,8 @@ function main() {
   log("========================= Export for Origami log =========================");
   var layers = [[doc currentPage] layers],
       fileManager = [NSFileManager defaultManager],
-      settings_filepath = export_directory + "/.origamiblueprint",
-      settings = [[NSMutableDictionary alloc] init], // for .origamiblueprint file
+      settings_filepath = export_directory + "/data.json",
+      settings = [[NSMutableDictionary alloc] init], // for data.json file
       settings_exists = [fileManager fileExistsAtPath:settings_filepath];
 
   // Get scale factor
@@ -70,7 +70,7 @@ function main() {
   [settings setValue:exported_layer_count forKey:@"layer_count"];
   var scaleJSON = [NSJSONSerialization dataWithJSONObject:settings options:NSJSONWritingPrettyPrinted error:nil];
   scaleJSON = [[NSString alloc] initWithData:scaleJSON encoding:NSUTF8StringEncoding];
-  log("Making .origamiblueprint file with contents: " + scaleJSON);
+  log("Making data.json file with contents: " + scaleJSON);
   [scaleJSON writeToFile:settings_filepath atomically:true encoding:NSUTF8StringEncoding error:null];
 
   // Open folder in Finder
