@@ -55,6 +55,15 @@ function main() {
     if (p != undefined) {
       layers_metadata.push(p);
     }
+
+    // Reset hiding on all children after all exports so dimensions are correct for groups with hidden children
+    for (var j=0; j<[[[doc currentPage] children] count]; j++) {
+      var child = [[[doc currentPage] children] objectAtIndex:j];
+      if ([child name].indexOf("@@hidden") > -1]) {
+        [child setIsVisible:false];
+        [child setName:[child name].split("@@hidden")[0])];
+      } 
+    }
   }
 
   // Save scale factor into settings
@@ -79,7 +88,6 @@ function main() {
 }
 
 function process_layer(layer, depth, artboard_name) {
-  if ([layer isVisible] == 0) { return; } // TODO: Support hidden layers?
   var layer_data;
 
   // Process groups (including artboards) and layers marked with +, and ungrouped layers outside of artboards
@@ -91,6 +99,13 @@ function process_layer(layer, depth, artboard_name) {
       log_depth("Renaming to: <" + [layer name] + "> to " + artboard_name + ">", depth);
     }
     layer_names.push(artboard_name + [layer name]);
+
+    if ([layer isVisible] == 0) { 
+      log("Layer hidden, showing layer addingnd adding hidden suffix");
+      layer_hidden = true;
+      [layer setIsVisible:true];
+      [layer setName:[layer name] + "@@hidden"];
+    }
 
     var e = export_layer(layer, depth, artboard_name);
     if (e != undefined) {
@@ -117,7 +132,6 @@ function process_layer(layer, depth, artboard_name) {
         }
         layer_data = metadata_for(layer, layer);
         layer_data.type = "group";
-        layer_data.name = sanitize_filename([layer name]);
         layer_data.layers = layers_holder;
       }
     }
@@ -167,7 +181,6 @@ function export_layer(layer, depth, artboard_name) {
     // Metadata
     layer_data = metadata_for(layer, layer_copy);
     layer_data.type = "layer";
-    layer_data.name = sanitize_filename([layer name]);
     exported_layer_count++;
 
     // Export PNG
@@ -195,7 +208,8 @@ function export_layer(layer, depth, artboard_name) {
 function metadata_for(layer, layer_copy) {
   var gkrect = [GKRect rectWithRect:[MSSliceTrimming trimmedRectForSlice:layer_copy]],
       position = calculate_real_position_for(layer),
-      x,y,w,h;
+      x,y,w,h,
+      layer_hidden = [layer name].indexOf("@@hidden") > -1;
 
   x = position.x;
   y = position.y;
@@ -213,12 +227,14 @@ function metadata_for(layer, layer_copy) {
     log("Shifting x by: " + top_level_group_pos.x);
     log("Shifting y by: " + top_level_group_pos.y);
   }
-  log("Metadata: { x:"+x+", y:"+y+", width:"+w+", height:"+h+"}");
+  log("Metadata for <" + [layer name] + ">: { x:"+x+", y:"+y+", width:"+w+", height:"+h+"}");
   return {
     x: x,
     y: y,
     w: w,
-    h: h
+    h: h,
+    name : sanitize_filename([layer name]),
+    hidden : layer_hidden
   };
 }
 
@@ -228,7 +244,7 @@ function calculate_real_position_for(layer) {
   var rulerDeltaX = [absrect rulerX] - [absrect x],
       rulerDeltaY = [absrect rulerY] - [absrect y],
       GKRectRulerX = [gkrect x] + rulerDeltaX,
-      GKRectRulerY = [gkrect y] + rulerDeltaY;  
+      GKRectRulerY = [gkrect y] + rulerDeltaY;
   return {
     x: Math.round(GKRectRulerX),
     y: Math.round(GKRectRulerY)
