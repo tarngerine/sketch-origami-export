@@ -95,8 +95,18 @@ function process_layer(layer, depth, artboard_name) {
     // Duplicate name check
     if (array_contains(layer_names, artboard_name + [layer name])) {
       log_depth("Layer name conflict: <" + [layer name] + "> already exists in artboard <" + artboard_name + ">", depth);
+
+      // Preserve layer name modifiers + - *
+      var last_char = [layer name].slice(-1);
+      var has_modifier = should_ignore_layer(layer) || should_flatten_layer(layer) || should_make_layer_own_image(layer);
+      if (has_modifier) {
+        [layer setName:[layer name].split(last_char)[0]]; // Remove last_char
+      }
       [layer setName:[layer name] + " copy"];
-      log_depth("Renaming to: <" + [layer name] + "> to " + artboard_name + ">", depth);
+      if (has_modifier) {
+        [layer setName:[layer name] + last_char];
+      }
+      log_depth("Renaming to: <" + [layer name] + ">", depth);
     }
     layer_names.push(artboard_name + [layer name]);
 
@@ -295,8 +305,12 @@ function should_flatten_layer(layer) {
   return [layer name].slice(-1) == "*";
 }
 
+function should_make_layer_own_image(layer) {
+  return [layer name].slice(-1) == '+');
+}
+
 function should_export_layer(layer) {
-  return (is_group(layer) || [layer name].slice(-1) == '+') && !should_ignore_layer(layer);
+  return (is_group(layer) || should_make_layer_own_image(layer)) && !should_ignore_layer(layer);
 }
 
 function is_group(layer) {
