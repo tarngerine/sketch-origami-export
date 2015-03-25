@@ -28,6 +28,19 @@ function main() {
       settings = [[NSMutableDictionary alloc] init], // for data.json file
       settings_exists = [fileManager fileExistsAtPath:settings_filepath];
 
+  if ([selection count] > 0) {
+    var has_top_level_group = false;
+    for (var i=0; i<[selection count]; i++) {
+      var s = [selection objectAtIndex:i];
+      if ([[s parentGroup] isMemberOfClass:[MSPage class]]) {
+        has_top_level_group = true;
+      }
+    }
+    if (has_top_level_group) {
+      layers = selection; // only override with selection if selecting an artboard/top level group
+    }
+  }
+
   // Get scale factor
   if (settings_exists) { 
     var data = [[NSString stringWithContentsOfFile:settings_filepath] dataUsingEncoding:NSUTF8StringEncoding];
