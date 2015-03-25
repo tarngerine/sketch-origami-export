@@ -123,7 +123,7 @@ function process_layer(layer, depth, artboard_name) {
     } 
 
     // Recursively go through sublayers if group not flattened with *
-    if (is_group(layer) && !should_flatten_layer(layer)) {
+    if (is_group(layer) && !should_flatten_layer(layer) && !is_symbol(layer)) {
       var sublayers = [layer layers];
       var has_exportable_children = false;
       var layers_holder = []
@@ -164,7 +164,7 @@ function export_layer(layer, depth, artboard_name) {
   var layer_data;
 
   log_depth("Processing <" + [layer name] + "> of type <" + [layer className] + ">", depth);
-  if (is_group(layer)) {
+  if (is_group(layer) && !is_symbol(layer)) {
     var sublayers = [layer_copy layers];
     for (var sub = ([sublayers count] - 1); sub >= 0; sub--) {
       var sublayer = [sublayers objectAtIndex:sub];
@@ -322,6 +322,10 @@ function should_export_layer(layer) {
 
 function is_group(layer) {
   return [layer isMemberOfClass:[MSLayerGroup class]] || [layer isMemberOfClass:[MSArtboardGroup class]]
+}
+
+function is_symbol(layer) {
+  return [layer parentOrSelfIsSymbol]; 
 }
 
 //
