@@ -70,8 +70,9 @@ function main() {
     }
 
     // Reset hiding on all children after all exports so dimensions are correct for groups with hidden children
-    for (var j=0; j<[[[doc currentPage] children] count]; j++) {
-      var child = [[[doc currentPage] children] objectAtIndex:j];
+    log("Finished processing layer<" + [layer name] + ">. Resetting hiding on all children");
+    for (var j=0; j<[[layer children] count]; j++) {
+      var child = [[layer children] objectAtIndex:j];
       if ([child name].indexOf("@@hidden") > -1]) {
         [child setIsVisible:false];
         [child setName:[child name].split("@@hidden")[0])];
@@ -106,21 +107,7 @@ function process_layer(layer, depth, artboard_name) {
   // Process groups (including artboards) and layers marked with +, and ungrouped layers outside of artboards
   if (should_export_layer(layer) || (!is_group(layer) && (depth == 0) && !(should_ignore_layer(layer)))) {
     // Duplicate name check
-    if (array_contains(layer_names, artboard_name + [layer name])) {
-      log_depth("Layer name conflict: <" + [layer name] + "> already exists in artboard <" + artboard_name + ">", depth);
-
-      // Preserve layer name modifiers + - *
-      var last_char = [layer name].slice(-1);
-      var has_modifier = should_ignore_layer(layer) || should_flatten_layer(layer) || should_make_layer_own_image(layer);
-      if (has_modifier) {
-        [layer setName:[layer name].split(last_char)[0]]; // Remove last_char
-      }
-      [layer setName:[layer name] + " copy"];
-      if (has_modifier) {
-        [layer setName:[layer name] + last_char];
-      }
-      log_depth("Renaming to: <" + [layer name] + ">", depth);
-    }
+    check_name_conflict(layer, depth, artboard_name);
     layer_names.push(artboard_name + [layer name]);
 
     if ([layer isVisible] == 0) { 
@@ -181,6 +168,8 @@ function export_layer(layer, depth, artboard_name) {
     var sublayers = [layer_copy layers];
     for (var sub = ([sublayers count] - 1); sub >= 0; sub--) {
       var sublayer = [sublayers objectAtIndex:sub];
+
+      log_depth_core("Processing sublayer <" + [sublayer name] + ">", depth, " ");
       // Check for mask
       if ([sublayer hasClippingMask]) {
         log_depth_core("Masking with <" + [sublayer name] + ">", depth, " ");
@@ -195,10 +184,14 @@ function export_layer(layer, depth, artboard_name) {
         included_layers.push([sublayer name]);
         has_art = true;
       }
+
     }
+    log_depth_core("Finished processing sublayers", depth, " ");
   } else {
     has_art = true;
   }
+
+  log_depth("Has art: " + has_art, depth);
 
   if (has_art) {
     // Metadata
@@ -229,6 +222,7 @@ function export_layer(layer, depth, artboard_name) {
 }
 
 function metadata_for(layer, layer_copy) {
+  log("Getting metadata for " + [layer name]);
   var gkrect = [GKRect rectWithRect:[MSSliceTrimming trimmedRectForSlice:layer_copy]],
       position = calculate_real_position_for(layer),
       x,y,w,h,
@@ -336,6 +330,30 @@ function is_group(layer) {
 
 function sanitize_filename(name) {
   return name.replace(/(:|\/)/g ,"_").replace(/__/g,"_").replace("*","").replace("+","").replace("@@hidden",""); // TODO: replace spaces? /(\s|:|\/)/g
+}
+
+function check_name_conflict(layer, depth, artboard_name) {
+  var was_conflict = false;
+  if (array_contains(layer_names, artboard_name + [layer name])) {
+      was_conflict = true;
+      log_depth("Layer name conflict: <" + [layer name] + "> already exists in artboard <" + artboard_name + ">", depth);
+
+      // Preserve layer name modifiers + - *
+      var last_char = [layer name].slice(-1);
+      var has_modifier = should_ignore_layer(layer) || should_flatten_layer(layer) || should_make_layer_own_image(layer);
+      if (has_modifier) {
+        [layer setName:[layer name].split(last_char)[0]]; // Remove last_char
+      }
+      [layer setName:[layer name] + " copy"];
+      if (has_modifier) {
+        [layer setName:[layer name] + last_char];
+      }
+      log_depth("Renaming to: <" + [layer name] + ">", depth);
+
+      check_name_conflict(layer, depth, artboard_name);
+    }
+
+  return was_conflict;
 }
 
 //
