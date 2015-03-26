@@ -1,5 +1,5 @@
 // (ctrl alt cmd O)
-// Export for Origami v1.0 - Julius Tarng
+// Export for Origami v1.1 - Julius Tarng
 // Based on bomberstudio + cemre's sketch-framer
 // - Exports all groups (append name with * to flatten subgroups) and layers (appended with +), similar to sketch-framer plugin
 // - Saves all assets to Sketch's temp directory under Origami Projects/[doc displayName]
