@@ -29,7 +29,9 @@ All groups and layers appended with `+` will become an individual PNG, sorted in
 
 - Exports are stored in Sketch's temp directory due to sandboxing. Every time you run the plugin, it opens the temp directory in Finder (`Command + Option + W` to close all Finder windows).
 
-- The plugin creates a hidden '.origamiblueprint' file that saves the scale factor you indicated on the first export for future exports without a dialog prompting every time.
+- You can select an artboard/top level group to export that one by itself.
+
+- Symbols are flattened due to plugin constraints.
 
 ## Miscellaneous
 Please file an issue or post in the [Origami Community](https://www.facebook.com/groups/origami.community/) page on Facebook if there is a problem! 
