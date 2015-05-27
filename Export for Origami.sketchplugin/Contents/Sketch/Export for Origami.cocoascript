@@ -24,6 +24,8 @@ var export_for_origami = function(context) {
   init_vars(context);
 
   log("========================= Export for Origami log =========================");
+
+  [doc showMessage:"Running Export for Origami..."];
   var layers = [[doc currentPage] layers],
       fileManager = [NSFileManager defaultManager],
       settings_filepath = export_directory + "/data.json",
@@ -84,9 +86,10 @@ var export_for_origami = function(context) {
 
   // Save scale factor into settings
   if (settings_exists) {
-    [doc showMessage:"Updating " + layer_names.length + " assets for Origami"];
+    [doc showMessage:"Updating " + layer_names.length + " assets for Origami. Plugins > Export for Origami > Reveal Exports in Finder to see them."];
   } else {
-    [doc showMessage:"Created folder with " + layer_names.length + " assets for Origami"];
+    [doc showMessage:"Exporting " + layer_names.length + " assets for Origami. Plugins > Export for Origami > Reveal Exports in Finder to see them."];
+    reveal_in_finder(context);
   }
 
   // Write settings
