@@ -27,7 +27,7 @@ All groups and layers appended with `+` will become an individual PNG, sorted in
 - Append a layer name with `+` to become its own file
 - Append a group or layer name with `-` to skip the layer
 
-- Exports are stored in Sketch's temp directory due to sandboxing. Every time you run the plugin, it opens the temp directory in Finder (`Command + Option + W` to close all Finder windows).
+- Exports are stored in Sketch's temp directory due to sandboxing. You can access the directory by hitting Plugins > Export for Origami > Reveal Exports in Finder.
 
 - You can select an artboard/top level group to export that one by itself.
 
