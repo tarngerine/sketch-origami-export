@@ -1,12 +1,4 @@
-// (ctrl alt cmd O)
-// Export for Origami v1.1 - Julius Tarng
-// Based on bomberstudio + cemre's sketch-framer
-// - Exports all groups (append name with * to flatten subgroups) and layers (appended with +), similar to sketch-framer plugin
-// - Saves all assets to Sketch's temp directory under Origami Projects/[doc displayName]
-
-preflight();
-var origami_directory = "Origami Blueprints/" + [doc displayName].split(".sketch")[0] + ".origamiblueprint",
-    export_directory = NSTemporaryDirectory() + origami_directory, //temp one avoiding sandboxing
+var doc, selection, export_directory,
     export_scale_factor = 1,
     layers_metadata = [],
     current_artboard = 0,
@@ -14,13 +6,23 @@ var origami_directory = "Origami Blueprints/" + [doc displayName].split(".sketch
     inside_top_level_group = false, //not artboard position shift
     top_level_group_pos = {"x" : 0, "y" : 0},
     layer_names = []; // to prevent conflicting filenames
-main();
 
-//
-// Main export functions
-//
+var init_vars = function(context){
+  doc = context.document;
+  selection = context.selection;
+  export_directory = NSTemporaryDirectory() + "Origami Blueprints/" + [doc displayName].split(".sketch")[0] + ".origamiblueprint";
+}
 
-function main() {
+var reveal_in_finder = function(context){
+  init_vars(context);
+  // Open folder in Finder
+  workspace = [[NSWorkspace alloc] init];
+  [workspace selectFile:export_directory inFileViewerRootedAtPath:@""];
+}
+
+var export_for_origami = function(context) {
+  init_vars(context);
+
   log("========================= Export for Origami log =========================");
   var layers = [[doc currentPage] layers],
       fileManager = [NSFileManager defaultManager],
@@ -95,13 +97,10 @@ function main() {
   scaleJSON = [[NSString alloc] initWithData:scaleJSON encoding:NSUTF8StringEncoding];
   log("Making data.json file with contents: " + scaleJSON);
   [scaleJSON writeToFile:settings_filepath atomically:true encoding:NSUTF8StringEncoding error:null];
-
-  // Open folder in Finder
-  workspace = [[NSWorkspace alloc] init];
-  [workspace selectFile:export_directory inFileViewerRootedAtPath:@""];
 }
 
-function process_layer(layer, depth, artboard_name) {
+// Local helpers
+var process_layer = function(layer, depth, artboard_name) {
   var layer_data;
 
   // Process groups (including artboards) and layers marked with +, and ungrouped layers outside of artboards
@@ -150,7 +149,7 @@ function process_layer(layer, depth, artboard_name) {
   return layer_data;
 }
 
-function export_layer(layer, depth, artboard_name) {
+var export_layer = function(layer, depth, artboard_name) {
   // Copy off-screen, out of artboard so it is not masked by artboard
   var layer_copy = [layer duplicate];
   [layer_copy removeFromParent];
@@ -221,7 +220,8 @@ function export_layer(layer, depth, artboard_name) {
   return layer_data;
 }
 
-function metadata_for(layer, layer_copy) {
+
+var metadata_for = function(layer, layer_copy) {
   log("Getting metadata for " + [layer name]);
   var gkrect = [GKRect rectWithRect:[MSSliceTrimming trimmedRectForSlice:layer_copy]],
       position = calculate_real_position_for(layer),
@@ -255,7 +255,7 @@ function metadata_for(layer, layer_copy) {
   };
 }
 
-function calculate_real_position_for(layer) {
+var calculate_real_position_for = function(layer) {
   var gkrect = [GKRect rectWithRect:[MSSliceTrimming trimmedRectForSlice:layer]],
       absrect = [layer absoluteRect];
   var rulerDeltaX = [absrect rulerX] - [absrect x],
@@ -271,15 +271,8 @@ function calculate_real_position_for(layer) {
 //
 // Helpers
 //
-function preflight() { 
-  var app_version = [NSApp applicationVersion].substr(0,1);
-  if (app_version < 3) {
-    alert("Export for Origami only supports Sketch 3 and above. You are running " + app_version, ". Please upgrade Sketch.");
-    return;
-  }
-}
 
-function combobox(msg, items, selectedItemIndex){
+var combobox = function(msg, items, selectedItemIndex){
   selectedItemIndex = selectedItemIndex || 0;
 
   var combobox = [[NSComboBox alloc] initWithFrame:NSMakeRect(0,0,50,25)];
@@ -304,27 +297,27 @@ function combobox(msg, items, selectedItemIndex){
 // Layer Helpers
 //
 
-function should_ignore_layer(layer) {
+var should_ignore_layer = function(layer) {
   return [layer name].slice(-1) == "-";
 }
 
-function should_flatten_layer(layer) {
+var should_flatten_layer = function(layer) {
   return [layer name].slice(-1) == "*";
 }
 
-function should_make_layer_own_image(layer) {
+var should_make_layer_own_image = function(layer) {
   return [layer name].slice(-1) == '+');
 }
 
-function should_export_layer(layer) {
+var should_export_layer = function(layer) {
   return (is_group(layer) || should_make_layer_own_image(layer)) && !should_ignore_layer(layer);
 }
 
-function is_group(layer) {
+var is_group = function(layer) {
   return [layer isMemberOfClass:[MSLayerGroup class]] || [layer isMemberOfClass:[MSArtboardGroup class]]
 }
 
-function is_symbol(layer) {
+var is_symbol = function(layer) {
   return [layer parentOrSelfIsSymbol]; 
 }
 
@@ -332,11 +325,11 @@ function is_symbol(layer) {
 // File helpers
 //
 
-function sanitize_filename(name) {
+var sanitize_filename = function(name) {
   return name.replace(/(:|\/)/g ,"_").replace(/__/g,"_").replace("*","").replace("+","").replace("@@hidden",""); // TODO: replace spaces? /(\s|:|\/)/g
 }
 
-function check_name_conflict(layer, depth, artboard_name) {
+var check_name_conflict  = function(layer, depth, artboard_name) {
   var was_conflict = false;
   if (array_contains(layer_names, artboard_name + [layer name])) {
       was_conflict = true;
@@ -364,16 +357,16 @@ function check_name_conflict(layer, depth, artboard_name) {
 // Debug Helpers
 //
 
-function alert(msg, title){
+var alert = function(msg, title){
   var app = [NSApplication sharedApplication];
   [app displayDialog:msg withTitle:title];
 }
 
-function log_depth(message, depth) {
+log_depth = function(message, depth) {
   log_depth_core(message, depth, ">");
 }
 
-function log_depth_core(message, depth, spacer) {
+log_depth_core = function(message, depth, spacer) {
   var padding = spacer;
   for(var i=0; i<depth; i++) {
     padding = padding + spacer;
@@ -381,7 +374,7 @@ function log_depth_core(message, depth, spacer) {
   log(padding + " " + message);
 }
 
-function array_contains(array, object) {
+var array_contains = function(array, object) {
   for (i=0;i<array.length;i++) {
     if (array[i] == object) {
       return true;

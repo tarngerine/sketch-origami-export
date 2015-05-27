@@ -1,0 +1,35 @@
+{
+    "name": "Export for Origami",
+    "description": "Updates assets for importing into Origami.",
+    "author": "Julius Tarng",
+    "homepage": "http://github.com/tarngerine/sketch-origami-export",
+    "version": 1.2,
+    "identifier": "com.tarng.sketch-export-origami",
+    "updateURL": "https://github.com/tarngerine/sketch-origami-export",
+    "compatibleVersion": 3.3,
+    "bundleVersion": 1,
+    "commands":
+      [
+        {
+          "name": "Export for Origami",
+          "identifier": "export",
+          "shortcut": "ctrl alt cmd o",
+          "script": "Export for Origami.cocoascript",
+          "handler": "export_for_origami"
+        },
+        {
+          "name": "Reveal Exports in Finder",
+          "identifier": "reveal",
+          "script": "Export for Origami.cocoascript",
+          "handler": "reveal_in_finder"
+        },
+      ],
+    "menu":
+      {
+        "items": 
+        [
+          "export",
+          "reveal"
+        ]
+      }
+}
