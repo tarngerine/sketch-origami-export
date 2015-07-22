@@ -32,6 +32,7 @@ var export_for_origami = function(context) {
       settings = [[NSMutableDictionary alloc] init], // for data.json file
       settings_exists = [fileManager fileExistsAtPath:settings_filepath];
 
+  log(settings_filepath);
   if ([selection count] > 0) {
     var has_top_level_group = false;
     for (var i=0; i<[selection count]; i++) {
@@ -46,16 +47,17 @@ var export_for_origami = function(context) {
   }
 
   // Get scale factor
-  if (settings_exists) { 
-    var data = [[NSString stringWithContentsOfFile:settings_filepath] dataUsingEncoding:NSUTF8StringEncoding];
-    var settings_old = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
-    export_scale_factor = [settings_old valueForKeyPath:@"scale"];
-  } else {
+  // DO NOT COMMIT
+  // if (settings_exists) { 
+  //   var data = [[NSString stringWithContentsOfFile:settings_filepath] dataUsingEncoding:NSUTF8StringEncoding];
+  //   var settings_old = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+  //   export_scale_factor = [settings_old valueForKeyPath:@"scale"];
+  // } else {
     var factors = [".5x", "1x", "1.5x", "2x", "3x"];
     var scale_factor_choice = combobox("Export with what resolution multiplier?", factors, 1);
     if (scale_factor_choice[0] != NSAlertFirstButtonReturn) { return; }
     export_scale_factor = scale_factor_choice[2].replace(/[^0-9]/g,"");
-  }
+  // }
 
   // Process layers
   for (var i=0; i<[layers count]; i++) {
@@ -98,6 +100,7 @@ var export_for_origami = function(context) {
   [settings setValue:exported_layer_count forKey:@"layer_count"];
   var scaleJSON = [NSJSONSerialization dataWithJSONObject:settings options:NSJSONWritingPrettyPrinted error:nil];
   scaleJSON = [[NSString alloc] initWithData:scaleJSON encoding:NSUTF8StringEncoding];
+  scaleJSON = [NSString stringWithString:"var data = " + scaleJSON];
   log("Making data.json file with contents: " + scaleJSON);
   [scaleJSON writeToFile:settings_filepath atomically:true encoding:NSUTF8StringEncoding error:null];
 }
@@ -209,9 +212,11 @@ var export_layer = function(layer, depth, artboard_name) {
     log_depth("Exporting <" + path_to_file + "> including sublayers (" + included_layers.join(", ") + ")", depth);
     var rect;
     if (mask_layer) {
-      rect = [MSSliceTrimming trimmedRectForSlice:mask_layer];
+      // rect = [MSSliceTrimming trimmedRectForSlice:mask_layer];
+      rect = slice_rect_for_layer(mask_layer);
     } else {
-      rect = [MSSliceTrimming trimmedRectForSlice:layer_copy];
+      rect = slice_rect_for_layer(layer_copy);
+      // rect = [layer_copy frame];
     }
     var slice = [MSExportRequest requestWithRect:rect scale:export_scale_factor];
     [doc saveArtboardOrSlice:slice toFile:path_to_file];
@@ -223,10 +228,27 @@ var export_layer = function(layer, depth, artboard_name) {
   return layer_data;
 }
 
+// accounts for slice offset due to bounds extending things like box shadow
+// as well as trimmed bounds (by trimmedRectForSlice) like fixed text field sizes
+var slice_rect_for_layer = function(layer) {
+  // trimmedRectForSlice accommodates for shadows/blur expansion
+  var slice = [MSSliceTrimming trimmedRectForSlice:layer];
+  // layer absoluteRect respects fixed text bounds
+  var frame = [layer absoluteRect];
+
+  var x = Math.min(slice.origin.x, frame.origin().x)
+  var y = Math.min(slice.origin.y, frame.origin().y)
+  var w = Math.max(slice.size.width, frame.size().width)
+  var h = Math.max(slice.size.height, frame.size().height)
+  var newFrame = NSMakeRect(x, y, w, h)
+
+  return newFrame;
+}
+
 
 var metadata_for = function(layer, layer_copy) {
   log("Getting metadata for " + [layer name]);
-  var gkrect = [GKRect rectWithRect:[MSSliceTrimming trimmedRectForSlice:layer_copy]],
+  var gkrect = [GKRect rectWithRect:slice_rect_for_layer(layer_copy)],
       position = calculate_real_position_for(layer),
       x,y,w,h,
       layer_hidden = [layer name].indexOf("@@hidden") > -1;
@@ -258,8 +280,9 @@ var metadata_for = function(layer, layer_copy) {
   };
 }
 
+// accounts for artboard offset
 var calculate_real_position_for = function(layer) {
-  var gkrect = [GKRect rectWithRect:[MSSliceTrimming trimmedRectForSlice:layer]],
+  var gkrect = [GKRect rectWithRect:slice_rect_for_layer(layer)],
       absrect = [layer absoluteRect];
   var rulerDeltaX = [absrect rulerX] - [absrect x],
       rulerDeltaY = [absrect rulerY] - [absrect y],
@@ -313,7 +336,8 @@ var should_make_layer_own_image = function(layer) {
 }
 
 var should_export_layer = function(layer) {
-  return (is_group(layer) || should_make_layer_own_image(layer)) && !should_ignore_layer(layer);
+  // return (is_group(layer) || should_make_layer_own_image(layer)) && !should_ignore_layer(layer);
+  return !should_ignore_layer(layer);
 }
 
 var is_group = function(layer) {
@@ -329,7 +353,10 @@ var is_symbol = function(layer) {
 //
 
 var sanitize_filename = function(name) {
-  return name.replace(/(:|\/)/g ,"_").replace(/__/g,"_").replace("*","").replace("+","").replace("@@hidden",""); // TODO: replace spaces? /(\s|:|\/)/g
+  name = name.replace("@@hidden","");
+  // name = escape(name)
+  name = name.replace(/([^a-zA-Z0-9-_@= ])/g, "")
+  return name; // TODO: replace spaces? /(\s|:|\/)/g
 }
 
 var check_name_conflict  = function(layer, depth, artboard_name) {
