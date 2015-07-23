@@ -9,6 +9,7 @@ You can [Download Zip](https://github.com/tarngerine/sketch-origami-export/archi
 ## How it works
 
 [Watch video tutorial](https://vimeo.com/120452278)
+
 This plugin takes all visible layers, in or out of artboards, and exports them into a temp directory for easy drag & drop into Origami (More info below). As you make changes and work back and forth between Sketch and Origami, run the plugin again and see it updated live with the Live Image patch.
 
 Hit `Control + Command + Option + O` to run the plugin, and it will first prompt you for the export scale (e.g. if you're working @2x already, the default of 1x export scale will export @2x).
