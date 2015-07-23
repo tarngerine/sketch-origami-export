@@ -6,9 +6,9 @@ Exports and updates Sketch assets for Facebook's [Origami](https://facebook.gith
 ## Installation
 You can [Download Zip](https://github.com/tarngerine/sketch-origami-export/archive/master.zip) to the right and double-click on the .sketchplugin file to install.
 
-[Watch video tutorial](https://vimeo.com/120452278)
-
 ## How it works
+
+[Watch video tutorial](https://vimeo.com/120452278)
 This plugin takes all visible layers, in or out of artboards, and exports them into a temp directory for easy drag & drop into Origami (More info below). As you make changes and work back and forth between Sketch and Origami, run the plugin again and see it updated live with the Live Image patch.
 
 Hit `Control + Command + Option + O` to run the plugin, and it will first prompt you for the export scale (e.g. if you're working @2x already, the default of 1x export scale will export @2x).
@@ -20,7 +20,7 @@ Hit `Control + Command + Option + O` to run the plugin, and it will first prompt
 All groups and layers appended with `+` will become an individual PNG, sorted into folders with their containing artboard names.
 
 ## More info
-- Drag the whole export directory, while holding `Command + Option` to automatically create Live Image patches with the paths to the assets:
+- Drag an image from the exported folder, while holding `Command + Option` to automatically create Live Image patches with the paths to the assets:
 ![](http://cl.ly/image/3G1m1G12083o/Export-for-Origami-Live-Image.png)
 
 - Append a group name with `*` to flatten all subgroups within (note: you do not need to flatten groups that do not have subgroups, as layers will automatically fold into the containing group)
