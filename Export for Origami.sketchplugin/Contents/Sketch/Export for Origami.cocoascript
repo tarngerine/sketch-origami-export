@@ -54,7 +54,7 @@ var export_for_origami = function(context) {
     var factors = [".5x", "1x", "1.5x", "2x", "3x"];
     var scale_factor_choice = combobox("Export with what resolution multiplier?", factors, 1);
     if (scale_factor_choice[0] != NSAlertFirstButtonReturn) { return; }
-    export_scale_factor = scale_factor_choice[2].replace(/[^0-9]/g,"");
+    export_scale_factor = parseFloat(scale_factor_choice[2].replace(/[^0-9.]/g,""));
   }
 
   // Process layers
