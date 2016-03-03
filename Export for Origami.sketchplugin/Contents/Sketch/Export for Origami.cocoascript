@@ -226,15 +226,15 @@ var export_layer = function(layer, depth, artboard_name) {
 
 var metadata_for = function(layer, layer_copy) {
   log("Getting metadata for " + [layer name]);
-  var gkrect = [GKRect rectWithRect:[MSSliceTrimming trimmedRectForSlice:layer_copy]],
+  var cgrect = [MSSliceTrimming trimmedRectForSlice:layer_copy],
       position = calculate_real_position_for(layer),
       x,y,w,h,
       layer_hidden = [layer name].indexOf("@@hidden") > -1;
 
   x = position.x;
   y = position.y;
-  w = [gkrect width];
-  h = [gkrect height];
+  w = cgrect.size.width;
+  h = cgrect.size.height;
 
   if ([layer isMemberOfClass:[MSArtboardGroup class]]) {
     log("Resetting x and y to 0 because artboard");
@@ -259,15 +259,15 @@ var metadata_for = function(layer, layer_copy) {
 }
 
 var calculate_real_position_for = function(layer) {
-  var gkrect = [GKRect rectWithRect:[MSSliceTrimming trimmedRectForSlice:layer]],
+  var cgrect = [MSSliceTrimming trimmedRectForSlice:layer],
       absrect = [layer absoluteRect];
   var rulerDeltaX = [absrect rulerX] - [absrect x],
       rulerDeltaY = [absrect rulerY] - [absrect y],
-      GKRectRulerX = [gkrect x] + rulerDeltaX,
-      GKRectRulerY = [gkrect y] + rulerDeltaY;
+      CGRectRulerX = cgrect.origin.x + rulerDeltaX,
+      CGRectRulerY = cgrect.origin.y + rulerDeltaY;
   return {
-    x: Math.round(GKRectRulerX),
-    y: Math.round(GKRectRulerY)
+    x: Math.round(CGRectRulerX),
+    y: Math.round(CGRectRulerY)
   }
 }
 
