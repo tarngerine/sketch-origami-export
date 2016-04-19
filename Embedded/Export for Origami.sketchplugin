@@ -310,7 +310,11 @@ function is_artboard(layer) {
 }
 
 function is_symbol(layer) {
-  return [layer parentOrSelfIsSymbol]; 
+  if(layer.parentOrSelfIsSymbol){
+    return [layer parentOrSelfIsSymbol];
+  } else {
+    return [layer isKindOfClass:MSSymbolInstance];
+  }
 }
 
 //

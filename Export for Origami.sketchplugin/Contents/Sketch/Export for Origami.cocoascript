@@ -322,7 +322,11 @@ var is_group = function(layer) {
 }
 
 var is_symbol = function(layer) {
-  return [layer parentOrSelfIsSymbol]; 
+  if(layer.parentOrSelfIsSymbol){
+    return [layer parentOrSelfIsSymbol];
+  } else {
+    return [layer isKindOfClass:MSSymbolInstance];
+  }
 }
 
 //
